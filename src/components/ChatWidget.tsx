@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChatBubbleLeftRightIcon, XMarkIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
 interface Message {
@@ -10,44 +10,171 @@ interface Message {
   time: string;
 }
 
-const initialMessages: Message[] = [
-  { id: 1, text: '你好！有什么可以帮助你的吗？', sender: 'me', time: '10:00' },
-  { id: 2, text: '嗨，我有一个关于订单的问题。', sender: 'user', time: '10:02' },
-  { id: 3, text: '当然！你想知道什么？', sender: 'me', time: '10:03' },
-];
-
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 自动滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // 打开聊天时获取初始化欢迎消息
+  useEffect(() => {
+    if (isOpen && !isInitialized) {
+      setIsInitialized(true);
+      fetchWelcomeMessage();
+    }
+  }, [isOpen]);
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
   };
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
+  // 获取 token 前10位作为 thread_id
+  const getThreadId = (): string => {
+    if (typeof window === 'undefined') return 'default';
+    const token = localStorage.getItem('token') || '';
+    return token.length >= 10 ? token.substring(0, 10) : (token || 'default');
+  };
 
-    const newMessage: Message = {
+  // 获取欢迎消息
+  const fetchWelcomeMessage = async () => {
+    try {
+      const threadId = getThreadId();
+      const response = await fetch(`http://127.0.0.1:8000/chat/${threadId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: '你好' }),
+      });
+
+      if (!response.ok) return;
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) return;
+
+      const welcomeMsg: Message = {
+        id: 1,
+        text: '',
+        sender: 'me',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages([welcomeMsg]);
+
+      let fullText = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+            if (data) {
+              fullText += data;
+              setMessages(prev => prev.map(msg => ({ ...msg, text: fullText })));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('获取欢迎消息失败:', error);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!inputText.trim() || isLoading) return;
+
+    const userMessage: Message = {
       id: messages.length + 1,
       text: inputText,
       sender: 'user',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages([...messages, newMessage]);
+    setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText;
     setInputText('');
+    setIsLoading(true);
 
-    // Auto reply after 1 second
-    setTimeout(() => {
-      const replyMessage: Message = {
-        id: messages.length + 2,
-        text: '感谢您的留言。我们团队会尽快回复您！',
-        sender: 'me',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages(prev => [...prev, replyMessage]);
-    }, 1000);
+    // 创建 AI 回复消息占位
+    const aiMessageId = messages.length + 2;
+    const aiMessage: Message = {
+      id: aiMessageId,
+      text: '',
+      sender: 'me',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+
+    try {
+      const threadId = getThreadId();
+      const response = await fetch(`http://127.0.0.1:8000/chat/${threadId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: currentInput }),
+      });
+
+      if (!response.ok) {
+        throw new Error('请求失败');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('无法读取响应');
+      }
+
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              setIsLoading(false);
+              return;
+            }
+            if (data) {
+              fullText += data;
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === aiMessageId ? { ...msg, text: fullText } : msg
+                )
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('聊天错误:', error);
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === aiMessageId ? { ...msg, text: '抱歉，连接失败，请稍后重试。' } : msg
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -123,18 +250,21 @@ export default function ChatWidget() {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
               placeholder="输入消息..."
-              className="flex-1 px-3 py-2 border border-[#dee2e6] rounded text-sm focus:outline-none focus:border-[#007bff]"
+              disabled={isLoading}
+              className="flex-1 px-3 py-2 border border-[#dee2e6] rounded text-sm focus:outline-none focus:border-[#007bff] disabled:opacity-50"
             />
             <button
               onClick={sendMessage}
-              className="p-2 bg-[#007bff] text-white rounded hover:bg-[#0056b3] transition-colors"
+              disabled={isLoading || !inputText.trim()}
+              className="p-2 bg-[#007bff] text-white rounded hover:bg-[#0056b3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <PaperAirplaneIcon className="w-5 h-5" />
+              <PaperAirplaneIcon className={`w-5 h-5 ${isLoading ? 'animate-pulse' : ''}`} />
             </button>
           </div>
         </div>
+        <div ref={messagesEndRef} />
       </div>
     </>
   );
