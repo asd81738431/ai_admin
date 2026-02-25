@@ -145,6 +145,8 @@ python main.py
 | POST | `/api/products` | 创建产品 |
 | GET | `/api/orders` | 获取订单列表 |
 
-## 许可证
+### 附图
+<img width="2560" height="1293" alt="1772024709764" src="https://github.com/user-attachments/assets/f16d1f3f-ea45-4817-99db-1f5ae1e63064" />
+<img width="2560" height="1293" alt="1772024601479" src="https://github.com/user-attachments/assets/78251e98-1fba-4d9a-9ee4-4c635d28e7e4" />
+<img width="2560" height="1293" alt="1772024644120" src="https://github.com/user-attachments/assets/043620d7-14ad-4033-a887-4af1fc37a00f" />
 
-MIT
