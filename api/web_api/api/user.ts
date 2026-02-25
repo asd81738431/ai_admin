@@ -1,11 +1,4 @@
-export interface UserModel {
-    id: number;
-    name: string;
-    email: string;
-    role: string;
-    status: string;
-    createdAt: string;
-}
+import { UserModel } from "../model/user";
 
 export async function GetUsers() {
     const users: UserModel[] = [

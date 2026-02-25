@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LockClosedIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { Login } from '../../../api/web_api/api/base';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +17,6 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    // Simple validation
     if (!email || !password) {
       setError('Please enter both email and password');
       setLoading(false);
@@ -24,29 +24,26 @@ export default function LoginPage() {
     }
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await Login(
+        new Request('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+      );
 
       const data = await response.json();
 
-      if (!response.ok) {
-        setError(data.error || 'Login failed');
-        setLoading(false);
-        return;
+      if (data.success) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('token', data.token);
+        router.push('/');
+      } else {
+        setError(data.message || 'Invalid email or password');
       }
-
-      // Store token and login state
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('isLoggedIn', 'true');
-      router.push('/');
     } catch (err) {
-      setError('Network error. Please try again.');
+      setError('Login failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };

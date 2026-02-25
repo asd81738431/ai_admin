@@ -1,5 +1,6 @@
 import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { UserModel,GetUsers } from "../../../api/web_api/api/user";
+import { GetUsers } from "../../../api/web_api/api/user";
+import { UserModel } from "../../../api/web_api/model/user";
 
 export default async function UsersPage() {
   const res = await GetUsers();

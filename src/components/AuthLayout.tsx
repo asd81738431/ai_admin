@@ -19,18 +19,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (isClient) {
       const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-      const token = localStorage.getItem('token');
-
-      // 检查登录状态和 token
-      if (!loggedIn || !token) {
-        // 清除可能存在的无效状态
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        if (pathname !== '/login') {
-          router.push('/login');
-        }
-      } else if (pathname === '/login') {
+      if (!loggedIn && pathname !== '/login') {
+        router.push('/login');
+      } else if (loggedIn && pathname === '/login') {
         router.push('/');
       }
     }
