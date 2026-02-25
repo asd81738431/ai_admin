@@ -1,10 +1,53 @@
-import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { GetUsers } from "../../../api/web_api/api/user";
-import { UserModel } from "../../../api/web_api/model/user";
+"use client";
 
-export default async function UsersPage() {
-  const res = await GetUsers();
-  const users = await res.json();
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+
+interface UserModel {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+}
+
+export default function UsersPage() {
+  const router = useRouter();
+  const [users, setUsers] = useState<UserModel[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 加载用户数据
+  async function loadUsers() {
+    setLoading(true);
+    const res = await fetch('/api/user');
+    const data = await res.json();
+    setUsers(data);
+    setLoading(false);
+  }
+
+  // 页面加载时获取用户
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  // 删除用户
+  const handleDelete = async (id: number) => {
+    if (!confirm('确定要删除该用户吗？')) return;
+
+    const res = await fetch('/api/user', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+
+    if (res.ok) {
+      setUsers(users.filter(user => user.id !== id));
+    } else {
+      alert('删除失败');
+    }
+  };
 
   return (
     <div>
@@ -22,7 +65,10 @@ export default async function UsersPage() {
       <div className="bg-white rounded shadow-sm border border-[#dee2e6]">
         <div className="border-b border-[#dee2e6] p-4 flex items-center justify-between">
           <h3 className="font-semibold">用户管理</h3>
-          <button className="px-4 py-2 bg-[#007bff] text-white rounded text-sm hover:bg-[#0056b3]">
+          <button
+            onClick={() => router.push('/users/edit')}
+            className="px-4 py-2 bg-[#007bff] text-white rounded text-sm hover:bg-[#0056b3]"
+          >
             添加用户
           </button>
         </div>
@@ -40,7 +86,20 @@ export default async function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user: UserModel) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-[#6c757d]">
+                    加载中...
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-[#6c757d]">
+                    暂无数据
+                  </td>
+                </tr>
+              ) : (
+                users.map((user: UserModel) => (
                 <tr key={user.id} className="border-t border-[#dee2e6] hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm">{user.id}</td>
                   <td className="px-4 py-3 text-sm font-medium">{user.name}</td>
@@ -56,16 +115,23 @@ export default async function UsersPage() {
                   <td className="px-4 py-3 text-sm text-[#6c757d]">{user.createdAt}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button className="p-1 text-[#007bff] hover:bg-blue-50 rounded">
+                      <button
+                        onClick={() => router.push(`/users/edit?id=${user.id}`)}
+                        className="p-1 text-[#007bff] hover:bg-blue-50 rounded"
+                      >
                         <PencilIcon className="w-4 h-4" />
                       </button>
-                      <button className="p-1 text-[#dc3545] hover:bg-red-50 rounded">
+                      <button
+                        onClick={() => handleDelete(user.id)}
+                        className="p-1 text-[#dc3545] hover:bg-red-50 rounded"
+                      >
                         <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+              )
+            ))}
             </tbody>
           </table>
         </div>

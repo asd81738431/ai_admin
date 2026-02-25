@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LockClosedIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
-import { Login } from '../../../api/web_api/api/base';
+import { Login } from '../api/base';
 
 export default function LoginPage() {
   const router = useRouter();
